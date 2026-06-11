@@ -1,4 +1,4 @@
-name: Deploy Application Directly to Server
+name: Deploy Node.js Application
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 
 jobs:
   deploy:
-    name: Direct Server Deployment
     runs-on: ubuntu-latest
 
     steps:
@@ -23,11 +22,9 @@ jobs:
 
           chmod 600 ~/.ssh/id_rsa
 
-          ssh-keygen -l -f ~/.ssh/id_rsa
-
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy Application
+      - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
 
@@ -36,22 +33,30 @@ jobs:
             APP_DIR="/opt/my-app"
             REPO_URL="https://github.com/vikrantkkkk/deploy_nodejs.git"
 
-            echo "Creating application directory if missing..."
+            echo "================================================="
+            echo "Starting deployment..."
+            echo "================================================="
+
+            # Create application directory
             sudo mkdir -p $APP_DIR
 
+            # Clone repository if not already present
             if [ ! -d "$APP_DIR/.git" ]; then
               echo "Repository not found. Cloning..."
               sudo git clone $REPO_URL $APP_DIR
-            else
-              echo "Repository already exists."
             fi
+
+            # Fix permissions
+            sudo chown -R ubuntu:ubuntu $APP_DIR
 
             cd $APP_DIR
 
             echo "Fetching latest code..."
-            sudo git reset --hard
-            sudo git clean -fd
-            sudo git pull origin main
+            git fetch origin
+
+            git reset --hard origin/main
+
+            git clean -fd
 
             echo "Installing dependencies..."
             npm install
@@ -62,11 +67,20 @@ jobs:
             echo "Starting application..."
             nohup node server.js > app.log 2>&1 &
 
-            sleep 5
+            sleep 10
 
-            echo "Running processes:"
-            ps aux | grep server.js | grep -v grep || true
+            echo "Checking application status..."
 
-            echo "Deployment completed successfully."
+            if pgrep -f "server.js" > /dev/null
+            then
+              echo "Application started successfully."
+            else
+              echo "Application failed to start."
+              exit 1
+            fi
+
+            echo "================================================="
+            echo "Deployment completed successfully"
+            echo "================================================="
 
           EOF

@@ -1,0 +1,44 @@
+name: Deploy Application Directly to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Direct Server Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Application
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+
+            cd /opt/my-app || exit 1
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            npm install
+
+            echo "Stopping existing application..."
+            pkill -f "server.js" || true
+
+            echo "Starting application..."
+            nohup node server.js > app.log 2>&1 &
+
+            echo "Deployment completed."
+
+          EOF

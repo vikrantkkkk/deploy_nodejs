@@ -17,13 +17,24 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
+
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+
+          # Remove Windows line endings if present
+          sed -i 's/\r$//' ~/.ssh/id_rsa
+
           chmod 600 ~/.ssh/id_rsa
+
+          echo "Validating SSH key..."
+          ssh-keygen -l -f ~/.ssh/id_rsa
+
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy Application
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+
+            set -e
 
             cd /opt/my-app || exit 1
 
@@ -39,6 +50,6 @@ jobs:
             echo "Starting application..."
             nohup node server.js > app.log 2>&1 &
 
-            echo "Deployment completed."
+            echo "Deployment completed successfully."
 
           EOF

@@ -19,13 +19,10 @@ jobs:
           mkdir -p ~/.ssh
 
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-
-          # Remove Windows line endings if present
           sed -i 's/\r$//' ~/.ssh/id_rsa
 
           chmod 600 ~/.ssh/id_rsa
 
-          echo "Validating SSH key..."
           ssh-keygen -l -f ~/.ssh/id_rsa
 
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
@@ -36,10 +33,25 @@ jobs:
 
             set -e
 
-            cd /opt/my-app || exit 1
+            APP_DIR="/opt/my-app"
+            REPO_URL="https://github.com/vikrantkkkk/deploy_nodejs.git"
 
-            echo "Pulling latest code..."
-            git pull origin main
+            echo "Creating application directory if missing..."
+            sudo mkdir -p $APP_DIR
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "Repository not found. Cloning..."
+              sudo git clone $REPO_URL $APP_DIR
+            else
+              echo "Repository already exists."
+            fi
+
+            cd $APP_DIR
+
+            echo "Fetching latest code..."
+            sudo git reset --hard
+            sudo git clean -fd
+            sudo git pull origin main
 
             echo "Installing dependencies..."
             npm install
@@ -49,6 +61,11 @@ jobs:
 
             echo "Starting application..."
             nohup node server.js > app.log 2>&1 &
+
+            sleep 5
+
+            echo "Running processes:"
+            ps aux | grep server.js | grep -v grep || true
 
             echo "Deployment completed successfully."
 
